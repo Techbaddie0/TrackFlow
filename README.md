@@ -1,168 +1,96 @@
-# Supply Chain Tracking Smart Contract
+# TrackFlow Supply Chain Tracking Smart Contract
 
 ## Overview
-This Clarity smart contract provides a comprehensive solution for tracking product provenance, logistics, and inventory management on the Stacks blockchain.
+TrackFlow is a robust Clarity smart contract designed for comprehensive product tracking on the Stacks blockchain. It provides a secure, transparent, and immutable solution for supply chain management.
 
 ## Features
-- Product Creation
-- Location Tracking
-- Ownership Transfer
-- Immutable Product History
-- Manufacturer Product Counting
+- Detailed Product State Management
+- Immutable Product Ownership History
+- Secure Ownership Transfers
+- Robust Input Validation
+- Timestamp Tracking
 
-### Contract Functions
+## Product States
+1. `STATE-CREATED` (u0): Initial product creation
+2. `STATE-IN-PRODUCTION` (u1): Product in manufacturing
+3. `STATE-IN-TRANSIT` (u2): Product in logistics
+4. `STATE-DELIVERED` (u3): Product reached destination
+5. `STATE-COMPLETED` (u4): Product lifecycle completed
 
-#### `create-product`
+## Contract Functions
+
+### `create-product`
 - Creates a new product in the supply chain
 - Parameters:
-  - `name`: Product name (string)
-  - `manufacturer`: Manufacturer name (string)
-- Returns: Product ID
+  - `product-id`: Unique product identifier
+  - `initial-location`: Starting location (max 100 characters)
+  - `current-timestamp`: Timestamp of product creation
+- Validates:
+  - Unique product ID
+  - Valid location length
+  - Valid timestamp
 
-#### `update-product-location`
-- Updates the current location and status of a product
+### `update-product-status`
+- Updates product state and location
 - Parameters:
-  - `product-id`: Unique identifier of the product
-  - `new-location`: Current location of the product
-  - `new-status`: Current status of the product
-- Requires: Sender must be the current product owner
+  - `product-id`: Product identifier
+  - `new-state`: New product state
+  - `new-location`: Updated location
+  - `current-timestamp`: Timestamp of update
+- Constraints:
+  - State transitions must be sequential
+  - Location and timestamp validated
 
-#### `transfer-product`
-- Transfers product ownership to a new owner
+### `transfer-product`
+- Transfers product ownership
 - Parameters:
-  - `product-id`: Unique identifier of the product
-  - `new-owner`: Principal (address) of the new owner
-- Requires: Sender must be the current product owner
+  - `product-id`: Product identifier
+  - `new-owner`: New owner's principal address
+  - `current-timestamp`: Timestamp of transfer
+- Features:
+  - Only current owner can transfer
+  - Maintains ownership history
+  - Tracks total ownership transfers
 
-### Read Functions
+## Read-Only Functions
 
-#### `get-product-details`
-- Retrieves current product details
-- Parameter: `product-id`
+### `get-product-details`
+- Retrieves comprehensive product information
+- Returns: Product details map
 
-#### `get-product-history`
-- Retrieves complete product movement history
-- Parameter: `product-id`
+### `get-total-products`
+- Returns total number of products created
 
 ## Error Codes
-- `err-unauthorized` (u100): Action not permitted
-- `err-product-not-found` (u101): Product does not exist
-- `err-invalid-status` (u102): Invalid product status
+- `ERR-NOT-AUTHORIZED` (u100): Unauthorized action
+- `ERR-INVALID-STATE-TRANSITION` (u101): Incorrect state change
+- `ERR-PRODUCT-NOT-FOUND` (u102): Product doesn't exist
+- `ERR-INVALID-INPUT` (u103): Invalid input parameters
+- `ERR-LOCATION-TOO-LONG` (u104): Location exceeds max length
+- `ERR-INVALID-TIMESTAMP` (u105): Timestamp out of valid range
+- `ERR-INVALID-PRODUCT-ID` (u106): Invalid product identifier
 
 ## Use Cases
-1. Pharmaceutical Tracking
-2. Luxury Goods Authentication
-3. Food Supply Chain Monitoring
-4. Electronic Component Traceability
+- Pharmaceutical Supply Chains
+- Luxury Goods Tracking
+- Food and Beverage Logistics
+- Electronics Component Management
+
+## Security Considerations
+- Strict input validation
+- Owner-only state modifications
+- Immutable ownership history
+- Timestamp-based tracking
+- Sequential state transitions
 
 ## Getting Started
 1. Deploy the contract on Stacks blockchain
 2. Use `create-product` to initialize products
-3. Track products using `update-product-location`
-4. Transfer ownership with `transfer-product`
-
-## Security Considerations
-- Only product owners can update location
-- Immutable history prevents tampering
-- Transparent tracking mechanism
-
-## Example Workflow
-1. Manufacturer creates a product
-2. Product moves through logistics checkpoints
-3. Each movement is recorded with location and status
-4. Ownership can be transferred securely
+3. Track product movement with `update-product-status`
+4. Transfer ownership using `transfer-product`
 
 ## Future Improvements
-- Add role-based access control
-- Implement more complex status transitions
-- Add batch/bulk product management
-
-
-
-# Supply Chain Tracking Smart Contract
-
-## Overview
-This Clarity smart contract provides a comprehensive solution for tracking product provenance, logistics, and inventory management on the Stacks blockchain.
-
-## Features
-- Product Creation
-- Location Tracking
-- Ownership Transfer
-- Immutable Product History
-- Manufacturer Product Counting
-
-### Contract Functions
-
-#### `create-product`
-- Creates a new product in the supply chain
-- Parameters:
-  - `name`: Product name (string)
-  - `manufacturer`: Manufacturer name (string)
-- Returns: Product ID
-
-#### `update-product-location`
-- Updates the current location and status of a product
-- Parameters:
-  - `product-id`: Unique identifier of the product
-  - `new-location`: Current location of the product
-  - `new-status`: Current status of the product
-- Requires: Sender must be the current product owner
-
-#### `transfer-product`
-- Transfers product ownership to a new owner
-- Parameters:
-  - `product-id`: Unique identifier of the product
-  - `new-owner`: Principal (address) of the new owner
-- Requires: Sender must be the current product owner
-
-### Read Functions
-
-#### `get-product-details`
-- Retrieves current product details
-- Parameter: `product-id`
-
-#### `get-product-history`
-- Retrieves complete product movement history
-- Parameter: `product-id`
-
-## Error Codes
-- `err-unauthorized` (u100): Action not permitted
-- `err-product-not-found` (u101): Product does not exist
-- `err-invalid-status` (u102): Invalid product status
-
-## Use Cases
-1. Pharmaceutical Tracking
-2. Luxury Goods Authentication
-3. Food Supply Chain Monitoring
-4. Electronic Component Traceability
-
-## Getting Started
-1. Deploy the contract on Stacks blockchain
-2. Use `create-product` to initialize products
-3. Track products using `update-product-location`
-4. Transfer ownership with `transfer-product`
-
-## Security Considerations
-- Only product owners can update location
-- Immutable history prevents tampering
-- Transparent tracking mechanism
-
-## Example Workflow
-1. Manufacturer creates a product
-2. Product moves through logistics checkpoints
-3. Each movement is recorded with location and status
-4. Ownership can be transferred securely
-
-## Future Improvements
-- Add role-based access control
-- Implement more complex status transitions
-- Add batch/bulk product management
-
-## License
-MIT License
-
-## Contributors
-- [Your Name/Organization]
-
-## Support
-For issues or improvements, please open a GitHub issue.
+- Enhanced state transition rules
+- Multi-party ownership tracking
+- Batch product management
+- Integration with external oracles
