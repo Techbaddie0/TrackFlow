@@ -68,6 +68,7 @@
 )
   (begin
     ;; Validate inputs
+    (asserts! (is-eq product-id (var-get total-products)) ERR-INVALID-PRODUCT-ID)
     (asserts! (is-valid-location initial-location) ERR-LOCATION-TOO-LONG)
     (asserts! (is-valid-timestamp current-timestamp) ERR-INVALID-TIMESTAMP)
     
