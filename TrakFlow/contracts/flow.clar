@@ -1,185 +1,160 @@
-;; Supply Chain Tracking Contract
-;; Manages product provenance, logistics, and inventory
+;; TrackFlow Supply Chain Tracking Smart Contract
 
-(define-map products
-  { product-id: uint }
+;; Define constants for product states
+(define-constant STATE-CREATED u0)
+(define-constant STATE-IN-PRODUCTION u1)
+(define-constant STATE-IN-TRANSIT u2)
+(define-constant STATE-DELIVERED u3)
+(define-constant STATE-COMPLETED u4)
+
+;; Define error codes
+(define-constant ERR-NOT-AUTHORIZED (err u100))
+(define-constant ERR-INVALID-STATE-TRANSITION (err u101))
+(define-constant ERR-PRODUCT-NOT-FOUND (err u102))
+
+;; Define a map to store product details
+(define-map products 
+  {product-id: uint} 
   {
-    name: (string-utf8 100)
-    manufacturer: (string-utf8 100)
-    current-location: (string-utf8 100)
-    owner: principal
-    status: (string-utf8 50)
-    timestamp: uint
+    owner: principal,
+    current-state: uint,
+    current-location: (string-utf8 100),
+    manufacturer: principal,
+    created-at: uint,
+    updated-at: uint
   }
 )
 
-(define-map product-history
-  { product-id: uint, history-index: uint }
-  {
-    location: (string-utf8 100)
-    timestamp: uint
-    status: (string-utf8 50)
-    handler: principal
-  }
+;; Define a map to track product ownership history
+(define-map product-ownership-history 
+  {product-id: uint, owner-index: uint} 
+  principal
 )
 
-(define-map product-count
-  { manufacturer: (string-utf8 100) }
-  { total-products: uint }
-)
-
-;; Store the next available product ID
-(define-data-var next-product-id uint u0)
-
-;; Error constants
-(define-constant err-unauthorized (err u100))
-(define-constant err-product-not-found (err u101))
-(define-constant err-invalid-status (err u102))
+;; Track the total number of products and ownership transfers
+(define-data-var total-products uint u0)
+(define-data-var total-ownership-transfers uint u0)
 
 ;; Create a new product in the supply chain
 (define-public (create-product 
-  (name (string-utf8 100))
-  (manufacturer (string-utf8 100))
+  (product-id uint) 
+  (initial-location (string-utf8 100))
+  (current-timestamp uint)
 )
-  (let 
-    (
-      (product-id (var-get next-product-id))
-      (current-count 
-        (default-to 
-          { total-products: u0 } 
-          (map-get? product-count { manufacturer: manufacturer })
-        )
-      )
-    )
-    ;; Increment product ID
-    (var-set next-product-id (+ product-id u1))
+  (begin
+    ;; Ensure product doesn't already exist
+    (asserts! (is-none (map-get? products {product-id: product-id})) ERR-NOT-AUTHORIZED)
     
     ;; Create product entry
     (map-set products 
-      { product-id: product-id }
+      {product-id: product-id}
       {
-        name: name
-        manufacturer: manufacturer
-        current-location: manufacturer
-        owner: tx-sender
-        status: "CREATED"
-        timestamp: block-height
+        owner: tx-sender,
+        current-state: STATE-CREATED,
+        current-location: initial-location,
+        manufacturer: tx-sender,
+        created-at: current-timestamp,
+        updated-at: current-timestamp
       }
     )
     
-    ;; Update product history
-    (map-set product-history 
-      { product-id: product-id, history-index: u0 }
-      {
-        location: manufacturer
-        timestamp: block-height
-        status: "CREATED"
-        handler: tx-sender
-      }
+    ;; Set initial ownership history
+    (map-set product-ownership-history 
+      {product-id: product-id, owner-index: u0} 
+      tx-sender
     )
     
-    ;; Update manufacturer product count
-    (map-set product-count 
-      { manufacturer: manufacturer }
-      { total-products: (+ (get total-products current-count) u1) }
-    )
+    ;; Increment total products
+    (var-set total-products (+ (var-get total-products) u1))
     
-    (ok product-id)
+    (ok true)
+  )
 )
 
-;; Update product location and status
-(define-public (update-product-location
-  (product-id uint)
+;; Update product state and location
+(define-public (update-product-status 
+  (product-id uint) 
+  (new-state uint)
   (new-location (string-utf8 100))
-  (new-status (string-utf8 50))
+  (current-timestamp uint)
 )
   (let 
     (
-      (product (unwrap! (map-get? products { product-id: product-id }) err-product-not-found))
-      (current-history-index 
-        (default-to u0 
-          (fold 
-            (lambda (index accum)
-              (if (is-some (map-get? product-history { product-id: product-id, history-index: index }))
-                  (+ index u1)
-                  index
-              )
-            )
-            (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9)
-            u0
-          )
-        )
+      (product (unwrap! 
+        (map-get? products {product-id: product-id}) 
+        ERR-PRODUCT-NOT-FOUND
+      ))
+      (current-state (get current-state product))
     )
+    ;; Validate state transition
+    (asserts! 
+      (or 
+        (is-eq new-state (+ current-state u1)) 
+        (is-eq new-state current-state)
+      ) 
+      ERR-INVALID-STATE-TRANSITION
     )
-    ;; Verify product ownership
-    (asserts! (is-eq tx-sender (get owner product)) err-unauthorized)
     
     ;; Update product details
     (map-set products 
-      { product-id: product-id }
+      {product-id: product-id}
       (merge product {
-        current-location: new-location
-        status: new-status
-        timestamp: block-height
+        current-state: new-state,
+        current-location: new-location,
+        updated-at: current-timestamp
       })
     )
     
-    ;; Add to product history
-    (map-set product-history 
-      { product-id: product-id, history-index: current-history-index }
-      {
-        location: new-location
-        timestamp: block-height
-        status: new-status
-        handler: tx-sender
-      }
-    )
-    
     (ok true)
+  )
 )
 
 ;; Transfer product ownership
-(define-public (transfer-product
-  (product-id uint)
+(define-public (transfer-product 
+  (product-id uint) 
   (new-owner principal)
+  (current-timestamp uint)
 )
   (let 
     (
-      (product (unwrap! (map-get? products { product-id: product-id }) err-product-not-found))
+      (product (unwrap! 
+        (map-get? products {product-id: product-id}) 
+        ERR-PRODUCT-NOT-FOUND
+      ))
+      (current-owner (get owner product))
     )
-    ;; Verify current owner
-    (asserts! (is-eq tx-sender (get owner product)) err-unauthorized)
+    ;; Ensure only current owner can transfer
+    (asserts! (is-eq tx-sender current-owner) ERR-NOT-AUTHORIZED)
     
-    ;; Update product ownership
+    ;; Update ownership
     (map-set products 
-      { product-id: product-id }
-      (merge product { 
-        owner: new-owner 
-        status: "TRANSFERRED"
-        timestamp: block-height
+      {product-id: product-id}
+      (merge product {
+        owner: new-owner,
+        updated-at: current-timestamp
       })
     )
     
+    ;; Track ownership history
+    (map-set product-ownership-history 
+      {
+        product-id: product-id, 
+        owner-index: (var-get total-ownership-transfers)
+      } 
+      new-owner
+    )
+    
+    ;; Increment ownership transfers
+    (var-set total-ownership-transfers 
+      (+ (var-get total-ownership-transfers) u1)
+    )
+    
     (ok true)
+  )
 )
 
 ;; Read product details
 (define-read-only (get-product-details (product-id uint))
-  (map-get? products { product-id: product-id })
+  (map-get? products {product-id: product-id})
 )
 
-;; Read product history
-(define-read-only (get-product-history (product-id uint))
-  (begin
-    (fold 
-      (lambda (index filtered-history)
-        (match (map-get? product-history { product-id: product-id, history-index: index })
-          entry (append filtered-history entry)
-          filtered-history
-        )
-      )
-      (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9)
-      (list)
-    )
-  )
-)
