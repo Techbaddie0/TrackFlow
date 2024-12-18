@@ -1,18 +1,21 @@
 ;; TrackFlow Supply Chain Tracking Smart Contract
 
-;; Define constants for product states
+;; Constants
 (define-constant STATE-CREATED u0)
 (define-constant STATE-IN-PRODUCTION u1)
 (define-constant STATE-IN-TRANSIT u2)
 (define-constant STATE-DELIVERED u3)
 (define-constant STATE-COMPLETED u4)
 
-;; Define error codes
 (define-constant ERR-NOT-AUTHORIZED (err u100))
 (define-constant ERR-INVALID-STATE-TRANSITION (err u101))
 (define-constant ERR-PRODUCT-NOT-FOUND (err u102))
+(define-constant ERR-INVALID-INPUT (err u103))
+(define-constant ERR-LOCATION-TOO-LONG (err u104))
+(define-constant ERR-INVALID-TIMESTAMP (err u105))
+(define-constant ERR-INVALID-PRODUCT-ID (err u106))
 
-;; Define a map to store product details
+;; Data Maps
 (define-map products 
   {product-id: uint} 
   {
@@ -25,15 +28,37 @@
   }
 )
 
-;; Define a map to track product ownership history
 (define-map product-ownership-history 
   {product-id: uint, owner-index: uint} 
   principal
 )
 
-;; Track the total number of products and ownership transfers
+;; Data Variables
 (define-data-var total-products uint u0)
 (define-data-var total-ownership-transfers uint u0)
+
+;; Private Functions
+
+;; Input validation functions
+(define-private (is-valid-product-id (product-id uint))
+  (< product-id (var-get total-products))
+)
+
+(define-private (is-valid-location (location (string-utf8 100)))
+  (and 
+    (> (len location) u0) 
+    (<= (len location) u100)
+  )
+)
+
+(define-private (is-valid-timestamp (timestamp uint))
+  (and 
+    (> timestamp u0) 
+    (<= timestamp u4102444800)  ;; Max timestamp: 2100-01-01
+  )
+)
+
+;; Public Functions
 
 ;; Create a new product in the supply chain
 (define-public (create-product 
@@ -42,6 +67,10 @@
   (current-timestamp uint)
 )
   (begin
+    ;; Validate inputs
+    (asserts! (is-valid-location initial-location) ERR-LOCATION-TOO-LONG)
+    (asserts! (is-valid-timestamp current-timestamp) ERR-INVALID-TIMESTAMP)
+    
     ;; Ensure product doesn't already exist
     (asserts! (is-none (map-get? products {product-id: product-id})) ERR-NOT-AUTHORIZED)
     
@@ -86,6 +115,11 @@
       ))
       (current-state (get current-state product))
     )
+    ;; Validate inputs
+    (asserts! (is-valid-product-id product-id) ERR-INVALID-PRODUCT-ID)
+    (asserts! (is-valid-location new-location) ERR-LOCATION-TOO-LONG)
+    (asserts! (is-valid-timestamp current-timestamp) ERR-INVALID-TIMESTAMP)
+    
     ;; Validate state transition
     (asserts! 
       (or 
@@ -123,6 +157,11 @@
       ))
       (current-owner (get owner product))
     )
+    ;; Validate inputs
+    (asserts! (is-valid-product-id product-id) ERR-INVALID-PRODUCT-ID)
+    (asserts! (is-some (some new-owner)) ERR-INVALID-INPUT)
+    (asserts! (is-valid-timestamp current-timestamp) ERR-INVALID-TIMESTAMP)
+    
     ;; Ensure only current owner can transfer
     (asserts! (is-eq tx-sender current-owner) ERR-NOT-AUTHORIZED)
     
@@ -153,8 +192,14 @@
   )
 )
 
+;; Read-only Functions
+
 ;; Read product details
 (define-read-only (get-product-details (product-id uint))
   (map-get? products {product-id: product-id})
 )
 
+;; Get total number of products
+(define-read-only (get-total-products)
+  (var-get total-products)
+)
